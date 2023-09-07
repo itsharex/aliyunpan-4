@@ -1,7 +1,9 @@
 import { createPinia } from 'pinia'
 import useAppStore from './appstore'
 import useKeyboardStore from './keyboardstore'
+import useMouseStore from './mousestore'
 import type { KeyboardState } from './keyboardstore'
+import type { MouseState } from './mousestore'
 import useLogStore from './logstore'
 import useModalStore from './modalstore'
 import type { ModalState } from './modalstore'
@@ -12,6 +14,8 @@ import useUserStore from '../user/userstore'
 import type { ITokenInfo } from '../user/userstore'
 import usePanTreeStore from '../pan/pantreestore'
 import usePanFileStore from '../pan/panfilestore'
+import useResPanTreeStore from '../resPan/pantreestore'
+import useResPanFileStore from '../resPan/panfilestore'
 
 import useServerStore from './serverstore'
 import type { IOtherShareLinkModel } from '../share/share/OtherShareStore'
@@ -41,12 +45,16 @@ export {
   ModalState,
   useWinStore,
   WinState,
+  useMouseStore,
   useKeyboardStore,
   KeyboardState,
+  MouseState,
   useUserStore,
   ITokenInfo,
   usePanTreeStore,
   usePanFileStore,
+  useResPanTreeStore,
+  useResPanFileStore,
   useServerStore,
   IOtherShareLinkModel,
   IShareSiteModel,

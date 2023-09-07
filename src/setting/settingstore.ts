@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import DebugLog from '../utils/debuglog'
-import { getResourcesPath, getUserDataPath } from '../utils/electronhelper'
+import {getUserDataPath} from '../utils/electronhelper'
 import {useAppStore, useUserStore} from '../store'
 import PanDAL from '../pan/pandal'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import UserDAL from "../user/userdal"
-import message from "../utils/message"
 
 declare type ProxyType = 'none' | 'http' | 'https' | 'socks4' | 'socks4a' | 'socks5' | 'socks5h'
 
@@ -17,18 +16,14 @@ export interface SettingState {
   uiImageMode: string
 
   uiVideoMode: string
-
   uiVideoPlayer: string
-
+  uiVideoPlayerExit: boolean
   uiVideoPlayerHistory: boolean
-
   uiVideoSubtitleMode: string
-
   uiVideoPlayerPath: string
+  uiAutoPlaycursorVideo: boolean
 
   uiAutoColorVideo: boolean
-
-  uiAutoPlaycursorVideo: boolean
 
   uiShowPanPath: boolean
 
@@ -36,11 +31,13 @@ export interface SettingState {
 
   uiExitOnClose: boolean
 
+  uiLaunchAutoCheckUpdate: boolean
+
+  uiLaunchAutoSign: boolean
+
   uiLaunchStart: boolean
 
   uiLaunchStartShow: boolean
-
-  uiLaunchAutoSign: boolean
 
   uiFolderSize: boolean
 
@@ -69,6 +66,8 @@ export interface SettingState {
 
 
   downSavePath: string
+
+  appUserDataPath: string
 
   downSavePathDefault: boolean
 
@@ -109,6 +108,8 @@ export interface SettingState {
   ariaUrl: string
 
   ariaPwd: string
+
+  alistPwd: string
 
   ariaHttps: boolean
 
@@ -163,15 +164,19 @@ const setting: SettingState = {
   uiImageMode: 'fill',
   uiVideoMode: 'web',
   uiVideoPlayer: 'web',
+  uiVideoPlayerExit: false,
   uiVideoPlayerHistory: false,
-  uiVideoSubtitleMode: 'close',
+  uiVideoSubtitleMode: 'auto',
   uiVideoPlayerPath: '',
-  uiAutoColorVideo: true,
   uiAutoPlaycursorVideo: true,
+  uiAutoColorVideo: true,
   uiShowPanPath: true,
   uiShowPanMedia: false,
   uiExitOnClose: false,
-
+  uiLaunchAutoCheckUpdate: false,
+  uiLaunchAutoSign: false,
+  uiLaunchStart: false,
+  uiLaunchStartShow: false,
   uiFolderSize: true,
   uiFileOrderDuli: 'null',
   uiTimeFolderFormate: 'yyyy-MM-dd HH-mm-ss',
@@ -193,6 +198,7 @@ const setting: SettingState = {
   ],
 
   downSavePath: '',
+  appUserDataPath: '',
   downSavePathDefault: true,
   downSavePathFull: true,
   downSaveBreakWeiGui: true,
@@ -213,6 +219,7 @@ const setting: SettingState = {
   ariaSavePath: '',
   ariaUrl: '',
   ariaPwd: '',
+  alistPwd: '',
   ariaHttps: false,
   ariaState: 'local',
   ariaLoading: false,
@@ -238,10 +245,7 @@ const setting: SettingState = {
 
   localAria2cConfPath: '',
   localAria2cPath:'',
-  uiLaunchAutoSign:false,
   ffmpegPath:'ffmpegPath',
-  uiLaunchStart: false,
-  uiLaunchStartShow: false,
 }
 function _loadSetting(val: any) {
 
@@ -250,15 +254,19 @@ function _loadSetting(val: any) {
   setting.uiImageMode = defaultValue(val.uiImageMode, ['fill', 'width', 'web'])
   setting.uiVideoMode = defaultValue(val.uiVideoMode, ['web', 'online'])
   setting.uiVideoPlayer = defaultValue(val.uiVideoPlayer, ['web', 'other'])
+  setting.uiVideoPlayerExit = defaultBool(val.uiVideoPlayerExit, false)
   setting.uiVideoPlayerHistory = defaultBool(val.uiVideoPlayerHistory, false)
   setting.uiVideoSubtitleMode = defaultValue(val.uiVideoSubtitleMode, ['close', 'auto', 'select'])
   setting.uiVideoPlayerPath = defaultString(val.uiVideoPlayerPath, '')
-  setting.uiAutoColorVideo = defaultBool(val.uiAutoColorVideo, true)
   setting.uiAutoPlaycursorVideo = defaultBool(val.uiAutoPlaycursorVideo, true)
+  setting.uiAutoColorVideo = defaultBool(val.uiAutoColorVideo, true)
   setting.uiShowPanPath = defaultBool(val.uiShowPanPath, true)
   setting.uiShowPanMedia = defaultBool(val.uiShowPanMedia, false)
   setting.uiExitOnClose = defaultBool(val.uiExitOnClose, false)
-
+  setting.uiLaunchAutoCheckUpdate = defaultBool(val.uiLaunchAutoCheckUpdate, false)
+  setting.uiLaunchAutoSign = defaultBool(val.uiLaunchAutoSign, false)
+  setting.uiLaunchStart = defaultBool(val.uiLaunchStart, false)
+  setting.uiLaunchStartShow = defaultBool(val.uiLaunchStartShow, false)
   setting.uiFolderSize = defaultBool(val.uiFolderSize, true)
   setting.uiFileOrderDuli = defaultString(val.uiFileOrderDuli, 'null')
   setting.uiTimeFolderFormate = defaultString(val.uiTimeFolderFormate, 'yyyy-MM-dd HH-mm-ss').replace('mm-dd', 'MM-dd').replace('HH-MM', 'HH-mm')
@@ -275,12 +283,13 @@ function _loadSetting(val: any) {
 
 
   setting.downSavePath = defaultString(val.downSavePath, '')
+  setting.appUserDataPath = defaultString(val.appUserDataPath, '')
   setting.downSavePathDefault = defaultBool(val.downSavePathDefault, true)
   setting.downSavePathFull = defaultBool(val.downSavePathFull, true)
   setting.downSaveBreakWeiGui = defaultBool(val.downSaveBreakWeiGui, true)
   setting.uploadFileMax = defaultValue(val.uploadFileMax, [5, 1, 3, 5, 10, 20, 30, 50])
   setting.downFileMax = defaultValue(val.downFileMax, [5, 1, 3, 5, 10, 20, 30])
-  setting.downThreadMax = defaultValue(val.downThreadMax, [4, 1, 2, 4, 8, 16])
+  setting.downThreadMax = defaultValue(val.downThreadMax, [4, 1, 2, 4, 8, 16, 24, 32])
   setting.uploadGlobalSpeed = defaultNumberSub(val.uploadGlobalSpeed, 0, 0, 999)
   setting.uploadGlobalSpeedM = defaultValue(val.uploadGlobalSpeedM, ['MB', 'KB'])
   setting.downGlobalSpeed = defaultNumberSub(val.downGlobalSpeed, 0, 0, 999)
@@ -289,7 +298,7 @@ function _loadSetting(val: any) {
   setting.downSaveShowPro = defaultBool(val.downSaveShowPro, true)
   setting.downSmallFileFirst = defaultBool(val.downSmallFileFirst, false)
   setting.downUploadBreakFile = defaultBool(val.downUploadBreakFile, false)
-  setting.downUploadWhatExist = defaultValue(val.downUploadWhatExist, ['ignore', 'overwrite', 'auto_rename', 'refuse'])
+  setting.downUploadWhatExist = defaultValue(val.downUploadWhatExist, ['ignore', 'auto_rename', 'refuse'])
   setting.downIngoredList = val.downIngoredList && val.downIngoredList.length > 0 ? val.downIngoredList : ['thumbs.db', 'desktop.ini', '.ds_store', '.td', '~', '.downloading']
 
   setting.ariaSavePath = defaultString(val.ariaSavePath, '')
@@ -297,6 +306,7 @@ function _loadSetting(val: any) {
   setting.ariaUrl = defaultString(val.ariaUrl, '')
   if (setting.ariaUrl.indexOf(':') < 0) setting.ariaUrl = ''
   setting.ariaPwd = defaultString(val.ariaPwd, '')
+  setting.alistPwd = defaultString(val.alistPwd, '')
   setting.ariaHttps = defaultBool(val.ariaHttps, false)
   setting.ariaState = defaultValue(val.ariaState, ['local', 'remote'])
   setting.ariaLoading = false
@@ -322,9 +332,6 @@ function _loadSetting(val: any) {
   setting.localAria2cPath = defaultString(val.localAria2cPath, '')
   setting.localAria2cConfPath = defaultString(val.localAria2cConfPath, '')
   setting.ffmpegPath = defaultString(val.ffmpegPath, '')
-  setting.uiLaunchAutoSign = defaultBool(val.uiLaunchAutoSign, false)
-  setting.uiLaunchStart = defaultBool(val.uiLaunchStart, false)
-  setting.uiLaunchStartShow = defaultBool(val.uiLaunchStartShow, false)
 }
 let settingstr = ''
 
@@ -379,6 +386,7 @@ function defaultNumberSub(val: any, check: number, min: number, max: number) {
 function SaveSetting() {
   try {
     const saveStr = JSON.stringify(setting)
+    // console.log('SaveSetting', saveStr)
     if (saveStr != settingstr) {
       const settingConfig = getUserDataPath('setting.config')
       writeFileSync(settingConfig, saveStr, 'utf-8')
@@ -398,25 +406,30 @@ const useSettingStore = defineStore('setting', {
   },
   actions: {
     async updateStore(partial: Partial<SettingState>) {
-      if (partial.uiTimeFolderFormate) partial.uiTimeFolderFormate = partial.uiTimeFolderFormate.replace('mm-dd', 'MM-dd').replace('HH-MM', 'HH-mm')
+      if (partial.uiTimeFolderFormate) {
+        partial.uiTimeFolderFormate = partial.uiTimeFolderFormate
+          .replace('mm-dd', 'MM-dd').replace('HH-MM', 'HH-mm')
+      }
       this.$patch(partial)
       if (Object.hasOwn(partial, 'uiLaunchStart') || Object.hasOwn(partial, 'uiLaunchStartShow')) {
-        window.WebToElectron({ cmd: { launchStartUp: this.uiLaunchStart, launchStartUpShow: this.uiLaunchStartShow } })
+        window.WebToElectron({ cmd: { launchStart: this.uiLaunchStart, launchStartShow: this.uiLaunchStartShow } })
       }
       if (Object.hasOwn(partial, 'proxyUseProxy')) {
         this.WebSetProxy()
       }
-      // if (Object.hasOwn(partial, 'launchAtStartup')) {
-      //   window.AutoLanuchAtStartup({launchAtStartup: setting.launchAtStartup})
-      // }
+      if (Object.hasOwn(partial, 'appUserDataPath')) {
+        window.WebToElectron({ cmd: { appUserDataPath: this.appUserDataPath} })
+      }
       if (Object.hasOwn(partial, 'uiLaunchAutoSign') && this.uiLaunchAutoSign) {
-        UserDAL.UserSign(useUserStore().user_id)
+        UserDAL.autoUserSign(useUserStore().GetUserToken)
       }
       if (Object.hasOwn(partial, 'uiTheme')) {
         useAppStore().toggleTheme(setting.uiTheme)
       }
-      if (Object.hasOwn(partial, 'uiShowPanMedia') || Object.hasOwn(partial, 'uiFolderSize') || Object.hasOwn(partial, 'uiFileOrderDuli')) {
-        PanDAL.aReLoadOneDirToShow('', 'refresh', false)
+      if (Object.hasOwn(partial, 'uiShowPanMedia')
+          || Object.hasOwn(partial, 'uiFolderSize')
+          || Object.hasOwn(partial, 'uiFileOrderDuli')) {
+        await PanDAL.aReLoadOneDirToShow('', 'refresh', false)
       }
       SaveSetting()
       window.WinMsgToUpload({ cmd: 'SettingRefresh' })

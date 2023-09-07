@@ -114,8 +114,9 @@ const userData = getUserData()
       <span class="opblue" style="margin-left: 12px; padding: 0 12px">( {{ settingStore.debugCacheSize }} )</span>
     </div>
     <div class="settingrow">
-      <a-input :style="{ width: '250px' }" tabindex="-1" :model-value="userData" placeholder="C:\Users\用户名\AppData\Roaming\alixby" :readonly="true" />
+      <a-input tabindex="-1" :model-value="userData" placeholder="C:\Users\用户名\AppData\Roaming\alixby" :readonly="true" />
     </div>
+    <div class="settingspace"></div>
     <div class="settingrow">
       <a-popconfirm content="确认要清理数据库？" @ok="AppCache.aClearCache('db')">
         <a-button type="outline" size="small" tabindex="-1" status="danger" style="margin-right: 16px">清理数据库</a-button>

@@ -3,30 +3,29 @@ import DB from '../../utils/db'
 import { humanDateTime, humanExpiration, Sleep } from '../../utils/format'
 import message from '../../utils/message'
 import useMyShareStore from './MyShareStore'
-import { useServerStore, IShareSiteModel } from '../../store'
+import { IShareSiteModel, useServerStore } from '../../store'
 import useOtherShareStore, { IOtherShareLinkModel } from './OtherShareStore'
 import ServerHttp from '../../aliapi/server'
 import { IID, ParseShareIDList } from '../../utils/shareurl'
 import { RunBatch } from '../../aliapi/batch'
 import AliShare from '../../aliapi/share'
 import { IAliShareAnonymous } from '../../aliapi/alimodels'
+import useMyTransferShareStore from './MyShareTransferStore'
+import AliTransferShareList from '../../aliapi/transfersharelist'
 
 export default class ShareDAL {
-  
+
   static async aLoadFromDB(): Promise<void> {
-    
     const shareSiteList = await DB.getValueObject('shareSiteList')
     useServerStore().mSaveShareSiteList(shareSiteList as IShareSiteModel[])
-    
     ShareDAL.aReloadOtherShare()
   }
 
-  
-  
+
   static async aReloadMyShare(user_id: string, force: boolean): Promise<void> {
     if (!user_id) return
     const myshareStore = useMyShareStore()
-    if (!force && myshareStore.ListDataRaw.length > 0) return 
+    if (!force && myshareStore.ListDataRaw.length > 0) return
     if (myshareStore.ListLoading == true) return
     myshareStore.ListLoading = true
     const resp = await AliShareList.ApiShareListAll(user_id)
@@ -34,16 +33,29 @@ export default class ShareDAL {
     myshareStore.ListLoading = false
   }
 
-  
+  static async aReloadMyTransferShare(user_id: string, force: boolean): Promise<void> {
+    if (!user_id) return
+    const myTransferShareStore = useMyTransferShareStore()
+    if (!force && myTransferShareStore.ListDataRaw.length > 0) return
+    if (myTransferShareStore.ListLoading == true) return
+    myTransferShareStore.ListLoading = true
+    const resp = await AliTransferShareList.ApiTransferShareListAll(user_id)
+    myTransferShareStore.aLoadListData(resp.items)
+    myTransferShareStore.ListLoading = false
+  }
+
   static async aReloadMyShareUntilShareID(user_id: string, share_id: string): Promise<void> {
     if (!user_id) return
     const find = await AliShareList.ApiShareListUntilShareID(user_id, share_id)
     if (find) ShareDAL.aReloadMyShare(user_id, true)
   }
 
-  
+  static async aReloadMyTransferShareUntilShareID(user_id: string, share_id: string): Promise<void> {
+    if (!user_id) return
+    const find = await AliTransferShareList.ApiTransferShareListUntilShareID(user_id, share_id, 20)
+    if (find) ShareDAL.aReloadMyTransferShare(user_id, true)
+  }
 
-  
   static async aReloadOtherShare(): Promise<void> {
     const othershareStore = useOtherShareStore()
     if (othershareStore.ListLoading == true) return
@@ -57,7 +69,7 @@ export default class ShareDAL {
         const updated_at = new Date(item.updated_at).getTime()
         item.updated_at = humanDateTime(updated_at)
       }
-      if (item.expired == false) {
+      if (!item.expired) {
         if (item.share_msg != '已失效') item.share_msg = humanExpiration(item.expiration, timeNow)
         item.expired = item.share_msg == '过期失效'
       }
@@ -67,7 +79,7 @@ export default class ShareDAL {
     othershareStore.ListLoading = false
   }
 
-  
+
   static async SaveOtherShare(password: string, info: IAliShareAnonymous, refresh: boolean) {
     let share = await DB.getOtherShare(info.shareinfo.share_id)
     if (!share) {
@@ -99,17 +111,17 @@ export default class ShareDAL {
       share.expired = share.share_msg == '过期失效'
     }
     await DB.saveOtherShare(share)
-    if (!refresh) return 
+    if (!refresh) return
     ShareDAL.aReloadOtherShare()
   }
 
-  
+
   static async SaveOtherShareText(text: string): Promise<boolean> {
     const idList = ParseShareIDList(text)
 
     if (idList.length == 0) {
       message.error('解析分享链接失败，格式错误')
-      return false 
+      return false
     }
 
     const savefunc = (one: IID) => {
@@ -123,7 +135,7 @@ export default class ShareDAL {
     return true
   }
 
-  
+
   static async SaveOtherShareRefresh(): Promise<boolean> {
     const shareList = await DB.getOtherShareAll()
 
@@ -150,19 +162,18 @@ export default class ShareDAL {
     return true
   }
 
-  
+
   static async DeleteOtherShare(selectKeys: string[]): Promise<void> {
     if (selectKeys) await DB.deleteOtherShareBatch(selectKeys)
     useOtherShareStore().mDeleteFiles(selectKeys)
   }
 
 
-
   static aLoadShareSite() {
     if (useServerStore().shareSiteList.length == 0) ServerHttp.CheckConfigUpgrade()
   }
 
-  
+
   static SaveShareSite(list: IShareSiteModel[]) {
     DB.saveValueObject('shareSiteList', list).catch(() => {})
     useServerStore().mSaveShareSiteList(list)

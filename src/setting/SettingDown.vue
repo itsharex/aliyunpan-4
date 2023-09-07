@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import useSettingStore from './settingstore'
 import MySwitch from '../layout/MySwitch.vue'
-import {AriaGlobalDownSpeed} from "../utils/aria2c";
+import {AriaGlobalSpeed} from "../utils/aria2c";
 const settingStore = useSettingStore()
 const cb = async (val: any) => {
-    settingStore.updateStore(val)
-    if (val.downGlobalSpeed > 0) {
-        await AriaGlobalDownSpeed()
+    // 限速实时生效
+    if (Object.hasOwn(val, 'downGlobalSpeed')){
+        await AriaGlobalSpeed()
     }
+    await settingStore.updateStore(val)
 }
 const handleSelectDownSavePath = () => {
   if (window.WebShowOpenDialogSync) {
@@ -37,7 +38,18 @@ const handleSelectDownSavePath = () => {
     <div class="settingspace"></div>
     <div class="settinghead"></div>
     <div class="settingrow">
-      <MySwitch :value="settingStore.downSavePathDefault" @update:value="cb({ downSavePathDefault: $event })">默认此路径为下载路径</MySwitch>
+      <MySwitch :value="settingStore.downSavePathDefault" @update:value="cb({ downSavePathDefault: $event })"> 新建下载任务时 默认使用此路径</MySwitch>
+      <a-popover position="bottom">
+        <i class="iconfont iconbulb" />
+        <template #content>
+          <div>
+            默认：<span class="opred">开启</span>
+            <hr />
+            推荐开启，点击下载按钮直接下载不询问<br /><br />
+            关闭此设置后，点击下载按钮会弹窗提示选择保存路径
+          </div>
+        </template>
+      </a-popover>
     </div>
     <div class="settingspace"></div>
     <div class="settinghead">使用网盘完整路径</div>

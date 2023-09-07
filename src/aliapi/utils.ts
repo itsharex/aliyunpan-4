@@ -18,7 +18,7 @@ export function GetDriveID(user_id: string, drive: Drive): string {
   if (token) {
     switch (drive) {
       case 'pan':
-        return token.default_drive_id
+        return token.backup_drive_id
       case 'pic':
         return token.pic_drive_id
       case 'safe':
@@ -33,7 +33,7 @@ export function GetDriveID2(token: ITokenInfo, driveName: string): string {
   if (token) {
     switch (driveName) {
       case 'pan':
-        return token.default_drive_id
+        return token.backup_drive_id
       case 'pic':
         return token.pic_drive_id
       case 'safe':
@@ -41,6 +41,21 @@ export function GetDriveID2(token: ITokenInfo, driveName: string): string {
     }
   }
   return driveName
+}
+
+export function GetDriveType(user_id: string, drive_id: string): any {
+  const token = UserDAL.GetUserToken(user_id)
+  if (token) {
+    switch (drive_id) {
+      case token.backup_drive_id:
+        return { title: '备份盘', key: 'backup_root' }
+      case token.resource_drive_id:
+        return { title: '资源盘', key: 'resource_root' }
+      case token.default_sbox_drive_id:
+        return { title: '安全盘', key: 'safe_root' }
+    }
+  }
+  return { title: '', key: '' }
 }
 
 export function GetSignature(nonce: number, user_id: string, deviceId: string) {

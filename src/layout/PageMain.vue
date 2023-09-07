@@ -1,6 +1,17 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { useAppStore, useKeyboardStore, KeyboardState, useSettingStore, useUserStore, useWinStore, useFootStore, useServerStore } from '../store'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import {
+  useAppStore,
+  useKeyboardStore,
+  KeyboardState,
+  useSettingStore,
+  useUserStore,
+  useWinStore,
+  useFootStore,
+  useServerStore,
+  useMouseStore,
+  MouseState
+} from '../store'
 import { onHideRightMenu, TestAlt, TestCtrl, TestKey, TestShift } from '../utils/keyboardhelper'
 import { getResourcesPath, openExternal } from '../utils/electronhelper'
 import DebugLog from '../utils/debuglog'
@@ -10,8 +21,8 @@ import Rss from '../rss/index.vue'
 import Share from '../share/index.vue'
 import Down from '../down/index.vue'
 import Pan from '../pan/index.vue'
+import ResourcePan from '../resPan/index.vue'
 import Pic from '../pic/index.vue'
-
 import UserInfo from '../user/UserInfo.vue'
 import UserLogin from '../user/UserLogin.vue'
 import ShutDown from '../setting/ShutDown.vue'
@@ -24,11 +35,14 @@ import Config from '../utils/config'
 import SponsorInfo from '../user/SponsorInfo.vue'
 import { existsSync, readFileSync } from 'fs'
 import os from 'os'
+import { getPkgVersion } from '../utils/utils'
 
 const panVisible = ref(true)
 const appStore = useAppStore()
 const winStore = useWinStore()
+const userStore = useUserStore()
 const keyboardStore = useKeyboardStore()
+const mouseStore = useMouseStore()
 const footStore = useFootStore()
 
 const handlePanVisible = () => {
@@ -53,18 +67,16 @@ const handleHelpPage = () => {
 }
 
 keyboardStore.$subscribe((_m: any, state: KeyboardState) => {
-  console.log(state.KeyDownEvent)
-
   if (TestAlt('1', state.KeyDownEvent, () => appStore.toggleTab('pan'))) return
-  if (TestAlt('2', state.KeyDownEvent, () => appStore.toggleTab('pic'))) return
-  if (TestAlt('3', state.KeyDownEvent, () => appStore.toggleTab('down'))) return
-  if (TestAlt('4', state.KeyDownEvent, () => appStore.toggleTab('share'))) return
-  if (TestAlt('5', state.KeyDownEvent, () => appStore.toggleTab('rss'))) return
-  if (TestAlt('6', state.KeyDownEvent, () => appStore.toggleTab('setting'))) return
+    if (TestAlt('2', state.KeyDownEvent, () => appStore.toggleTab('resPan'))) return
+  if (TestAlt('3', state.KeyDownEvent, () => appStore.toggleTab('pic'))) return
+  if (TestAlt('4', state.KeyDownEvent, () => appStore.toggleTab('down'))) return
+  if (TestAlt('5', state.KeyDownEvent, () => appStore.toggleTab('share'))) return
+  if (TestAlt('6', state.KeyDownEvent, () => appStore.toggleTab('rss'))) return
+  if (TestAlt('7', state.KeyDownEvent, () => appStore.toggleTab('setting'))) return
   if (TestAlt('f4', state.KeyDownEvent, () => handleHideClick(undefined))) return
   if (TestAlt('m', state.KeyDownEvent, () => handleMinClick(undefined))) return
   if (TestAlt('enter', state.KeyDownEvent, () => handleMaxClick(undefined))) return
-
   if (TestShift('tab', state.KeyDownEvent, () => appStore.toggleTabNext())) return
   if (TestCtrl('tab', state.KeyDownEvent, () => appStore.toggleTabNextMenu())) return
   if (TestAlt('l', state.KeyDownEvent, () => (useUserStore().userShowLogin = true))) return
@@ -74,10 +86,13 @@ keyboardStore.$subscribe((_m: any, state: KeyboardState) => {
   if (TestKey('f11', state.KeyDownEvent, f11)) return
 })
 
+mouseStore.$subscribe((_m: any, state: MouseState) => {
+  // console.log(state)
+})
+
 const onResize = throttle(() => {
   const width = document.body.offsetWidth || 800
   const height = document.body.offsetHeight || 600
-
   if (winStore.width != width || winStore.height != height) winStore.updateStore({ width, height })
   // let ddsound = document.getElementById('ddsound') as { play: any } | undefined
   // if (ddsound) ddsound.play()
@@ -87,7 +102,6 @@ const onKeyDown = (event: KeyboardEvent) => {
   const ele = (event.srcElement || event.target) as any
   const nodeName = ele && ele.nodeName
   if (event.key === 'Tab') {
-
     event.preventDefault()
     event.stopPropagation()
     event.cancelBubble = true
@@ -96,11 +110,20 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
   if (document.body.getElementsByClassName('arco-modal-container').length) return
   if (event.key == 'Control' || event.key == 'Shift' || event.key == 'Alt' || event.key == 'Meta') return
-
   const isInput = nodeName == 'INPUT' || nodeName == 'TEXTAREA' || false
   if (!isInput) {
     onHideRightMenu()
     keyboardStore.KeyDown(event)
+  }
+}
+
+const onMouseDown = (event: MouseEvent) => {
+  const ele = (event.srcElement || event.target) as any
+  const nodeName = ele && ele.nodeName
+  if (document.body.getElementsByClassName('arco-modal-container').length) return
+  const isInput = nodeName == 'INPUT' || nodeName == 'TEXTAREA' || false
+  if (!isInput) {
+    mouseStore.KeyDown(event)
   }
 }
 
@@ -116,37 +139,34 @@ onMounted(() => {
   DebugLog.aLoadFromDB()
   window.addEventListener('resize', onResize, { passive: true })
   window.addEventListener('keydown', onKeyDown, true)
-
+  window.addEventListener('mousedown', onMouseDown, true)
   setTimeout(() => {
     onHideRightMenu()
   }, 300)
-
   window.addEventListener('click', onHideRightMenu, { passive: true })
-
-  const css = document.getElementById('usercsslink')
-  const csshref = getResourcesPath('theme.css')
-  // if (css) css.setAttribute('href', 'file:///' + csshref) // TODO 没有这个文件？
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('mousedown', onMouseDown)
   window.removeEventListener('click', onHideRightMenu)
 })
 
-const getAppVersion = () => {
+const getAppVersion = computed(() => {
+  const pkgVersion = getPkgVersion()
   if (os.platform() === 'linux') {
-    return Config.appVersion
+    return pkgVersion
   }
   let appVersion = ''
   const localVersion = getResourcesPath('localVersion')
   if (localVersion && existsSync(localVersion)) {
     appVersion = readFileSync(localVersion, 'utf-8')
   } else {
-    appVersion = Config.appVersion
+    appVersion = pkgVersion
   }
   return appVersion
-}
+})
 
 const verLoading = ref(false)
 const handleCheckVer = () => {
@@ -164,14 +184,15 @@ const handleCheckVer = () => {
            <i class="iconfont iconmenuon" v-if="panVisible"/>
            <i class="iconfont iconmenuoff" v-else/>
         </a-button>
-        <div class="title">小白羊 {{ Config.appVersion }}</div>
+        <div v-show="appStore.appTab !== 'pic'" class="title">小白羊 {{ Config.appVersion }}</div>
 
-        <a-menu mode="horizontal" :selected-keys="[appStore.appTab]" @update:selected-keys="appStore.toggleTab($event[0])">
-          <a-menu-item key="pan" title="Alt+1">网盘</a-menu-item>
-          <a-menu-item key="pic" title="Alt+2">相册</a-menu-item>
-          <a-menu-item key="down" title="Alt+3">传输</a-menu-item>
-          <a-menu-item key="share" title="Alt+4">分享</a-menu-item>
-          <a-menu-item key="rss" title="Alt+5">插件</a-menu-item>
+        <a-menu class="custom-menu" mode="horizontal" :selected-keys="[appStore.appTab]" @update:selected-keys="appStore.toggleTab($event[0])">
+          <a-menu-item key="pan" title="Alt+1">备份盘</a-menu-item>
+          <a-menu-item key="resPan" title="Alt+2">资源盘</a-menu-item>
+          <a-menu-item key="pic" title="Alt+3">相册</a-menu-item>
+          <a-menu-item key="down" title="Alt+4">传输</a-menu-item>
+          <a-menu-item key="share" title="Alt+5">资源&分享</a-menu-item>
+          <a-menu-item key="rss" title="Alt+6">插件</a-menu-item>
         </a-menu>
 
         <div class="flexauto"></div>
@@ -196,11 +217,12 @@ const handleCheckVer = () => {
     <a-layout-content id="xbybody">
       <a-tabs type="text" :direction="'horizontal'" class="hidetabs" :justify="true" :active-key="appStore.appTab">
         <a-tab-pane key="pan" title="1"><Pan :visible="panVisible"/></a-tab-pane>
-        <a-tab-pane key="pic" title="2"><Pic /></a-tab-pane>
-        <a-tab-pane key="down" title="3"><Down /></a-tab-pane>
-        <a-tab-pane key="share" title="4"><Share /></a-tab-pane>
-        <a-tab-pane key="rss" title="5"><Rss /></a-tab-pane>
-        <a-tab-pane key="setting" title="6"><Setting /></a-tab-pane>
+        <a-tab-pane key="resPan" title="2"><ResourcePan :visible="panVisible"/></a-tab-pane>
+        <a-tab-pane key="pic" title="3"><Pic /></a-tab-pane>
+        <a-tab-pane key="down" title="4"><Down /></a-tab-pane>
+        <a-tab-pane key="share" title="5"><Share /></a-tab-pane>
+        <a-tab-pane key="rss" title="6"><Rss /></a-tab-pane>
+        <a-tab-pane key="setting" title="7"><Setting /></a-tab-pane>
       </a-tabs>
     </a-layout-content>
     <a-layout-footer id="xbyfoot" draggable="false">
@@ -234,14 +256,14 @@ const handleCheckVer = () => {
           </div>
 
           <div class="footerBar fix" v-show="footStore.uploadTotalSpeed" >
-            <i class="iconfont iconshangchuansudu" />
+            <i class="iconfont iconshangchuansudu" style='color: red !important;' />
             <span id="footUploadSpeed" class="footspeedstr">
               {{ footStore.uploadTotalSpeed }}
             </span>
           </div>
 
           <div class="footerBar fix" v-show="footStore.downloadTotalSpeed" >
-            <i class="iconfont iconxiazaisudu" />
+            <i class="iconfont iconxiazaisudu" style='color: red !important;' />
             <span id="footDownSpeed" class="footspeedstr">
               {{ footStore.downloadTotalSpeed }}
             </span>
@@ -252,7 +274,7 @@ const handleCheckVer = () => {
             <span class="footAria" title="Aria已离线" v-else> Aria ⚯ Offline </span>
           </div>
 
-          <div class="footerBar fix" style="padding: 0 8px; cursor: pointer" @click="handleCheckVer">{{ Config.appVersion }}</div>
+          <div class="footerBar fix" style="padding: 0 8px; cursor: pointer" @click="handleCheckVer">{{ getAppVersion }}</div>
 
           <a-popover v-model:popup-visible="footStore.taskVisible" trigger="click" position="top" class="asynclist">
             <div class="footerBar fix" style="cursor: pointer">
@@ -643,5 +665,9 @@ body[arco-theme='dark'] #footer2 audio::-webkit-media-controls-time-remaining-di
     transform: rotate(0deg);
     transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
   }
+}
+.custom-menu {
+  /* 添加合适的宽度 */
+  width: 50% !important;
 }
 </style>

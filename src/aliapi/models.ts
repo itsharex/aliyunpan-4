@@ -32,6 +32,7 @@ export interface IVideoPreviewUrl {
   width: number
   height: number
   urlQHD: string
+  play_cursor: number
 
   urlFHD: string
   urlHD: string
@@ -154,11 +155,13 @@ export interface IAliGetAlbumModel {
 }
 
 export interface IAliUserDriveDetails {
-  drive_used_size: number
-  drive_total_size: number
-  default_drive_used_size: number
   album_drive_used_size: number
+  backup_drive_used_size: number
+  default_drive_used_size: number
+  drive_total_size: number
+  drive_used_size: number
   note_drive_used_size: number
+  resource_drive_used_size: number
   sbox_drive_used_size: number
   share_album_drive_used_size: number
 }

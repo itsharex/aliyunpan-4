@@ -54,6 +54,8 @@ export interface AppState {
   appPage: string
   
   appTab: string
+
+  isVip: boolean
   
   appTabMenuMap: Map<string, string>
   appDark: boolean
@@ -72,8 +74,10 @@ const useAppStore = defineStore('app', {
     appTheme: 'light',
     appPage: 'PageLoading',
     appTab: 'pan',
+    isVip: true,
     appTabMenuMap: new Map<string, string>([
-      ['pan', 'wangpan'],
+      ['pan', 'backupPan'],
+      ['resPan', 'resourcePan'],
       ['pic', 'allpic'],
       ['down', 'DowningRight'],
       ['share', 'OtherShareRight'],
@@ -123,20 +127,21 @@ const useAppStore = defineStore('app', {
       this.$patch({
         appTab: 'pan',
         appTabMenuMap: new Map<string, string>([
-          ['pan', 'wangpan'],
+          ['pan', 'backupPan'],
+          ['resPan', 'resourcePan'],
           ['pic', 'allpic'],
           ['down', 'DowningRight'],
           ['share', 'OtherShareRight'],
           ['rss', 'AppSame'],
-          ['setting', '']
+          ['setting', ''],
         ])
       })
     },
     
-    toggleTab(tab: string) {
+    async toggleTab(tab: string) {
       if (this.appTab != tab) {
         this.appTab = tab
-        if (tab == 'setting') DebugLog.aLoadFromDB() 
+        if (tab == 'setting') DebugLog.aLoadFromDB()
         onHideRightMenu()
       }
     },
@@ -164,6 +169,10 @@ const useAppStore = defineStore('app', {
     toggleTabNext() {
       switch (this.appTab) {
         case 'pan': {
+          this.appTab = 'resPan'
+          break
+        }
+        case 'resPan': {
           this.appTab = 'pic'
           break
         }
@@ -206,7 +215,11 @@ const useAppStore = defineStore('app', {
 
       switch (this.appTab) {
         case 'pan': {
-          next(this.appTabMenuMap, this.appTab, ['wangpan', 'kuaijie', 'fangying'])
+          next(this.appTabMenuMap, this.appTab, ['backupPan', 'kuaijie', 'fangying'])
+          break
+        }
+        case 'resPan': {
+          next(this.appTabMenuMap, this.appTab, ['resourcePan', 'resKuaijie'])
           break
         }
         case 'pic': {
@@ -218,7 +231,7 @@ const useAppStore = defineStore('app', {
           break
         }
         case 'share': {
-          next(this.appTabMenuMap, this.appTab, ['OtherShareRight', 'MyShareRight', 'MyFollowingRight', 'OtherFollowingRight', 'ShareSiteRight'])
+          next(this.appTabMenuMap, this.appTab, ['OtherShareRight', 'MyShareRight', 'MyFollowingRight', 'OtherFollowingRight', 'ShareSiteRight', 'alist'])
           break
         }
         case 'rss': {

@@ -50,8 +50,8 @@ export default defineComponent({
         <template #default>下载</template>
       </a-doption>
       <a-doption @click="() => menuCreatShare(istree, 'pan')">
-        <template #icon> <i class="iconfont iconfenxiang" /> </template>
-        <template #default>分享</template>
+        <template #icon> <i class="iconfont iconrss" /> </template>
+        <template #default>快传</template>
       </a-doption>
 
       <a-dsubmenu id="leftpansubmove" class="rightmenu" trigger="hover">
@@ -69,6 +69,14 @@ export default defineComponent({
             <template #icon> <i class="iconfont iconcopy" /> </template>
             <template #default>复制到...</template>
           </a-doption>
+          <a-doption @click="() => menuCopySelectedFile(istree, 'cut', true)">
+            <template #icon> <i class="iconfont iconscissor" /> </template>
+            <template #default>移动到资源盘</template>
+          </a-doption>
+          <a-doption @click="() => menuCopySelectedFile(istree, 'copy', true)">
+            <template #icon> <i class="iconfont iconcopy" /> </template>
+            <template #default>复制到资源盘</template>
+          </a-doption>
           <a-doption class="danger" @click="() => menuTrashSelectFile(istree, false)">
             <template #icon> <i class="iconfont icondelete" /> </template>
             <template #default>回收站</template>
@@ -76,12 +84,12 @@ export default defineComponent({
         </template>
       </a-dsubmenu>
 
-      <a-doption @click="() => modalRename(istree, false)">
+      <a-doption @click="() => modalRename('backupPan', istree, false)">
         <template #icon> <i class="iconfont iconedit-square" /> </template>
         <template #default>重命名</template>
       </a-doption>
 
-      <a-doption @click="() => modalShuXing(istree, false)">
+      <a-doption @click="() => modalShuXing('backupPan',istree, false)">
         <template #icon> <i class="iconfont iconshuxing" /> </template>
         <template #default>属性</template>
       </a-doption>

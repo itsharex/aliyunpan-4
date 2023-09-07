@@ -102,9 +102,28 @@ window.WebRelaunchAria = async function() {
     return 0
   }
 }
+window.WebRelaunchAlist = async function() {
+  try {
+    return await ipcRenderer.invoke('WebRelaunchAlist')
+  } catch {
+    return 0
+  }
+}
+window.WebResetAlistPwd = async function(data: any) {
+  try {
+    return await ipcRenderer.invoke('WebResetAlistPwd', data)
+  } catch {
+    return 0
+  }
+}
 window.WebSetProgressBar = function (data: any) {
   try {
     ipcRenderer.send('WebSetProgressBar', data) 
+  } catch {}
+}
+window.WebGetCookies = async function (data: any) {
+  try {
+    return await ipcRenderer.invoke('WebGetCookies', data)
   } catch {}
 }
 window.WebSetCookies = function (cookies: any) {
@@ -133,19 +152,6 @@ window.WebSetProxy = function (data: { proxyUrl: string }) {
     ipcRenderer.send('WebSetProxy', data)
   } catch {}
 }
-
-// window.AutoLanuchAtStartup = function (data: { launchAtStartup: string }) {
-//   try {
-//     ipcRenderer.send('AutoLanuchAtStartup', data)
-//   } catch {}
-// }
-
-
-// window.CheckUpdate = function () {
-//   try {
-//     ipcRenderer.send('CheckUpdate')
-//   } catch {}
-// }
 
 function createRightMenu() {
   window.addEventListener(

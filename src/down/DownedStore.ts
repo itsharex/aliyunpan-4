@@ -1,10 +1,9 @@
 import fuzzysort from 'fuzzysort'
 import { defineStore } from 'pinia'
-import { IStateDownFile } from './DownDAL'
-import { GetSelectedList, GetFocusNext, SelectAll, MouseSelectOne, KeyboardSelectOne } from '../utils/selecthelper'
+import DownDAL, { IStateDownFile } from './DownDAL'
+import { GetFocusNext, GetSelectedList, KeyboardSelectOne, MouseSelectOne, SelectAll } from '../utils/selecthelper'
 import { humanSize } from '../utils/format'
 import message from '../utils/message'
-import DB from '../utils/db'
 import fs from 'fs'
 import path from 'path'
 
@@ -80,15 +79,8 @@ const useDownStore = defineStore('down', {
   },
 
   actions: {
-
     aLoadListData(list: Item[], count: number) {
-
-      let item: Item
-      for (let i = 0, maxi = list.length; i < maxi; i++) {
-        item = list[i]
-      }
       this.ListDataRaw = this.mGetOrder(this.ListOrderKey, list)
-
       let oldSelected = this.ListSelected
       let newSelected = new Set<string>()
       let key = ''
@@ -96,8 +88,13 @@ const useDownStore = defineStore('down', {
         key = list[i][KEY]
         if (oldSelected.has(key)) newSelected.add(key)
       }
-
-      this.$patch({ ListSelected: newSelected, ListFocusKey: '', ListSelectKey: '', ListSearchKey: '', ListDataCount: count})
+      this.$patch({
+        ListSelected: newSelected,
+        ListFocusKey: '',
+        ListSelectKey: '',
+        ListSearchKey: '',
+        ListDataCount: count
+      })
       this.mRefreshListDataShow(true)
     },
 
@@ -157,7 +154,11 @@ const useDownStore = defineStore('down', {
     },
 
     mSelectAll() {
-      this.$patch({ ListSelected: SelectAll(this.ListDataShow, KEY, this.ListSelected), ListFocusKey: '', ListSelectKey: '' })
+      this.$patch({
+        ListSelected: SelectAll(this.ListDataShow, KEY, this.ListSelected),
+        ListFocusKey: '',
+        ListSelectKey: ''
+      })
       this.mRefreshListDataShow(false)
     },
 
@@ -201,34 +202,36 @@ const useDownStore = defineStore('down', {
 
     /**
      * 删除下载完成，修改为“待删除”状态，并从列表中删除 <br/>
-     * @param uploadIDList
+     * @param downedIDList
      */
-    mDeleteUploaded(uploadIDList: string[]) {
-      const UploadedList = this.ListDataRaw
-      const newListSelected = new Set(this.ListSelected);
-      const newList: Item[] = [];
-      for (let j = 0; j < UploadedList.length; j++) {
-        const downID = UploadedList[j].DownID;
-        if (uploadIDList.includes(downID)) {
-          UploadedList[j].Down.DownState = '待删除'
-          if (newListSelected.has(downID)) newListSelected.delete(downID);
+    async mDeleteDowned(downedIDList: string[]) {
+      const newListSelected = new Set(this.ListSelected)
+      const newList: Item[] = []
+      const downedList: Item[] = this.ListDataRaw
+      const deleteList: Item[] = []
+      for (let j = 0; j < downedList.length; j++) {
+        const downID = downedList[j].DownID
+        if (downedIDList.includes(downID)) {
+          downedList[j].Down.DownState = '待删除'
+          deleteList.push(downedList[j])
+          if (newListSelected.has(downID)) newListSelected.delete(downID)
         } else {
-          newList.push(UploadedList[j]);
+          newList.push(downedList[j])
         }
       }
-      this.ListDataRaw = newList;
-      this.ListSelected = newListSelected;
-      DB.deleteDowneds(uploadIDList)
+      this.ListDataRaw = newList
+      this.ListSelected = newListSelected
+      await DownDAL.deleteDowned(false, deleteList)
       this.mRefreshListDataShow(true)
     },
 
     /**
      * 删除全部
      */
-    mDeleteAllUploaded() {
+    async mDeleteAllDowned() {
+      await DownDAL.deleteDowned(true, this.ListDataRaw)
       this.ListSelected = new Set<string>()
       this.ListDataRaw.splice(0, this.ListDataRaw.length)
-      DB.deleteDownedAll()
       this.mRefreshListDataShow(true)
     },
 
@@ -241,7 +244,6 @@ const useDownStore = defineStore('down', {
      */
     mOpenUploadedFile(file: Item | null, downIDList: string[], isDir: boolean) {
       const DownedList = this.ListDataRaw
-
       const openDir = (localFilePath: string) => {
         try {
           if (fs.existsSync(localFilePath)) {
@@ -278,10 +280,10 @@ const useDownStore = defineStore('down', {
         return
       }
 
-      let opDownIDList = downIDList;
+      let opDownIDList = downIDList
       if (downIDList.length > 10) {
-        message.info('选择的数量大于10个，已经为你优化打开前10个',10)
-        opDownIDList = downIDList.slice(0,10)
+        message.info('选择的数量大于10个，已经为你优化打开前10个', 10)
+        opDownIDList = downIDList.slice(0, 10)
       }
       for (let j = 0; j < DownedList.length; j++) {
         const downID = DownedList[j].DownID
@@ -298,7 +300,7 @@ const useDownStore = defineStore('down', {
           }
         }
       }
-    },
+    }
 
   }
 })

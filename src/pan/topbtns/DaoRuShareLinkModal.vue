@@ -10,6 +10,14 @@ export default defineComponent({
     visible: {
       type: Boolean,
       required: true
+    },
+    shareUrl: {
+      type: String,
+      required: true
+    },
+    sharePwd: {
+      type: String,
+      required: true
     }
   },
   setup(props) {
@@ -20,7 +28,11 @@ export default defineComponent({
       sharelink: '',
       password: ''
     })
-    
+    if (props.shareUrl !== '') {
+      // 自动填入值
+      form.sharelink = props.shareUrl
+    }
+
     const FixFormate = (text: string, enmpty: boolean) => {
       let linkTxt = ''
       let linkPwd = ''
@@ -57,8 +69,17 @@ export default defineComponent({
 
       const text = getFromClipboard()
       const link = FixFormate(text, true)
-      form.sharelink = link.linkTxt
-      form.password = link.linkPwd
+      if (props.shareUrl !== '') {
+        form.sharelink = props.shareUrl
+      } else {
+        form.sharelink = link.linkTxt
+      }
+      if (props.sharePwd !== '') {
+        form.password = props.sharePwd
+      } else {
+        form.password = link.linkPwd
+      }
+
     }
 
     const handleClose = () => {

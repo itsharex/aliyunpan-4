@@ -3,7 +3,7 @@ import AliArchive from '../aliapi/archive'
 import AliFile from '../aliapi/file'
 import AliFileCmd from '../aliapi/filecmd'
 import ServerHttp from '../aliapi/server'
-import { ITokenInfo, useFootStore, usePanFileStore, useSettingStore, useUserStore } from '../store'
+import { ITokenInfo, useFootStore, usePanFileStore, useResPanFileStore, useSettingStore, useUserStore } from '../store'
 import { IPageCode, IPageImage, IPageOffice, IPageVideo } from '../store/appstore'
 import UserDAL from '../user/userdal'
 import { clickWait } from './debounce'
@@ -11,8 +11,9 @@ import DebugLog from './debuglog'
 import { CleanStringForCmd } from './filehelper'
 import message from './message'
 import { modalArchive, modalArchivePassword, modalSelectPanDir } from './modal'
-import { humanTime, Sleep } from './format'
+import { humanTime } from './format'
 import levenshtein from 'fast-levenshtein'
+import { SpawnOptions } from 'child_process'
 
 export async function menuOpenFile(file: IAliGetFileModel): Promise<void> {
   if (clickWait('menuOpenFile', 500)) return
@@ -56,37 +57,44 @@ export async function menuOpenFile(file: IAliGetFileModel): Promise<void> {
     }
     // 选择字幕
     let subTitleFileId = ''
-    if (useSettingStore().uiVideoPlayer === 'other') {
-      if (useSettingStore().uiVideoSubtitleMode === 'auto') {
-        let listDataRaw = usePanFileStore().ListDataRaw || []
-        let subTitlesList = listDataRaw && listDataRaw.filter(file => /srt|vtt|ass/.test(file.ext))
-        if (subTitlesList && subTitlesList.length > 0) {
-          let similarity = { distance: 999, index: 0 }
-          for (let i = 0; i < subTitlesList.length; i++) {
-            // 莱文斯坦距离算法(计算相似度)
-            const distance = levenshtein.get(file.name, subTitlesList[i].name, { useCollator: true })
-            if (similarity.distance > distance) {
-              similarity.distance = distance
-              similarity.index = i
-            }
-          }
-          // 自动加载同名字幕
-          if (similarity.distance !== 999) {
-            subTitleFileId = subTitlesList[similarity.index].file_id
-          }
-        }
-        Video(token, drive_id, file_id, parent_file_id, file.name, file.icon == 'iconweifa', file.description, subTitleFileId)
-      } else if (useSettingStore().uiVideoSubtitleMode === 'select') {
-        // 手动选择字幕文件
-        modalSelectPanDir('select', parent_file_id, async (_user_id: string, _drive_id: string, dirID: string, _dirName: string) => {
-          Video(token, drive_id, file_id, parent_file_id, file.name, file.icon == 'iconweifa', file.description, dirID)
-        }, '', /srt|vtt|ass/)
-      } else {
-        Video(token, drive_id, file_id, parent_file_id, file.name, file.icon == 'iconweifa', file.description, subTitleFileId)
-      }
+    const { uiVideoPlayer, uiVideoSubtitleMode } = useSettingStore()
+    let listDataRaw = []
+    if (drive_id === token.backup_drive_id) {
+       listDataRaw = usePanFileStore().ListDataRaw || []
     } else {
-      Video(token, drive_id, file_id, parent_file_id, file.name, file.icon == 'iconweifa', file.description, subTitleFileId)
+       listDataRaw = useResPanFileStore().ListDataRaw || []
     }
+
+    const subTitlesList = listDataRaw.filter(file => /srt|vtt|ass/.test(file.ext))
+    const isViolation = file.icon == 'iconweifa'
+    if (uiVideoPlayer === 'other' && uiVideoSubtitleMode === 'auto') {
+      const fileName = file.name
+      // 自动加载同名字幕
+      const similarity: any = subTitlesList.reduce((min: any, item, index) => {
+        // 莱文斯坦距离算法(计算相似度)
+        const distance = levenshtein.get(fileName, item.name, { useCollator: true })
+        if (distance < min.distance) {
+          min.distance = distance
+          min.index = index
+        }
+        return min
+      }, { distance: Infinity, index: -1 })
+      subTitleFileId = (similarity.index !== -1) ? subTitlesList[similarity.index].file_id : ''
+    } else if (uiVideoSubtitleMode === 'select') {
+      if (drive_id === token.backup_drive_id) {
+        modalSelectPanDir('backupPan','select', parent_file_id, async (_user_id: string, _drive_id: string, dirID: string, _dirName: string) => {
+          Video(token, drive_id, file_id, parent_file_id, file.name, isViolation, file.description, dirID)
+        }, '', /srt|vtt|ass/)
+        return
+      } else {
+        modalSelectPanDir('resourcePan','select', parent_file_id, async (_user_id: string, _drive_id: string, dirID: string, _dirName: string) => {
+          Video(token, drive_id, file_id, parent_file_id, file.name, isViolation, file.description, dirID)
+        }, '', /srt|vtt|ass/)
+        return
+      }
+
+    }
+    Video(token, drive_id, file_id, parent_file_id, file.name, isViolation, file.description, subTitleFileId)
     return
   }
   if (file.category.startsWith('audio')) {
@@ -94,7 +102,7 @@ export async function menuOpenFile(file: IAliGetFileModel): Promise<void> {
     return
   }
   const codeExt = PrismExt(file.ext)
-  if (file.size < 100 * 1024 || (file.size < 5 * 1024 * 1024 && codeExt)) {
+  if (file.size < 512 * 1024 || (file.size < 5 * 1024 * 1024 && codeExt)) {
     Code(drive_id, file_id, file.name, codeExt, file.size)
     return
   }
@@ -106,14 +114,13 @@ async function Archive(drive_id: string, file_id: string, file_name: string, par
     message.error('违规文件，操作取消')
     return
   }
-  message.loading('Loading...', 2)
   const user_id = useUserStore().user_id
   const token = await UserDAL.GetUserTokenFromDB(user_id)
   if (!token || !token.access_token) {
     message.error('在线预览失败 账号失效，操作取消')
     return
   }
-
+  message.loading('Loading...', 2)
   const info = await AliFile.ApiFileInfoOpenApi(user_id, drive_id, file_id)
   if (!info) {
     message.error('在线预览失败 获取文件信息出错，操作取消')
@@ -128,7 +135,6 @@ async function Archive(drive_id: string, file_id: string, file_name: string, par
   }
 
   if (resp.state == '密码错误' && useSettingStore().yinsiZipPassword) {
-
     password = await ServerHttp.PostToServer({
       cmd: 'GetZipPwd',
       sha1: info.content_hash,
@@ -146,11 +152,18 @@ async function Archive(drive_id: string, file_id: string, file_name: string, par
   }
 
   if (resp.state == '密码错误') {
-
-    modalArchivePassword(user_id, drive_id, file_id, file_name, parent_file_id, info.domain_id, info.file_extension || '')
+    if (drive_id === token.resource_drive_id) {
+      modalArchivePassword('resourcePan', user_id, drive_id, file_id, file_name, parent_file_id, info.domain_id, info.file_extension || '')
+    } else {
+      modalArchivePassword('backupPan', user_id, drive_id, file_id, file_name, parent_file_id, info.domain_id, info.file_extension || '')
+    }
   } else if (resp.state == 'Succeed' || resp.state == 'Running') {
+    if (drive_id === token.resource_drive_id) {
+      modalArchive('resourcePan', user_id, drive_id, file_id, file_name, parent_file_id, password)
+    } else {
+      modalArchive('backupPan', user_id, drive_id, file_id, file_name, parent_file_id, password)
+    }
 
-    modalArchive(user_id, drive_id, file_id, file_name, parent_file_id, password)
   } else {
     message.error('在线解压失败 ' + resp.state + '，操作取消')
     DebugLog.mSaveDanger('在线解压失败 ' + resp.state, drive_id + ' ' + file_id)
@@ -163,26 +176,26 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
     message.error('在线预览失败 无法预览违规文件')
     return
   }
-  // 获取文件信息
-  let play_cursor: number = 0
-  if (useSettingStore().uiVideoPlayer == 'web' || useSettingStore().uiVideoPlayerHistory) {
-    const info = await AliFile.ApiFileInfoOpenApi(token.user_id, drive_id, file_id)
-    if (info?.play_cursor) {
-      play_cursor = info?.play_cursor
-    } else if (info?.user_meta) {
-      const meta = JSON.parse(info?.user_meta)
-      if (meta.play_cursor) {
-        play_cursor = parseFloat(meta.play_cursor)
-      }
-    }
-  }
-
   message.loading('加载视频中...', 2)
+  // 获取文件信息
+  let play_cursor: number = 0;
+  if (useSettingStore().uiVideoPlayer == 'web' || useSettingStore().uiVideoPlayerHistory) {
+    const info = await AliFile.ApiVideoPreviewUrlOpenApi(token.user_id, drive_id, file_id)
+    if (!info) {
+      message.error('在线预览失败 获取文件信息出错：' + info)
+      return
+    }
+    play_cursor = info.play_cursor
+  }
   const settingStore = useSettingStore()
   if (settingStore.uiAutoColorVideo && !dec) {
     AliFileCmd.ApiFileColorBatch(token.user_id, drive_id, 'c5b89b8', [file_id])
       .then((success) => {
-        usePanFileStore().mColorFiles('c5b89b8', success)
+        if (drive_id == usePanFileStore().DriveID) {
+          usePanFileStore().mColorFiles('c5b89b8', success)
+        } else {
+          useResPanFileStore().mColorFiles('c5b89b8', success)
+        }
       })
   }
 
@@ -201,14 +214,14 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
   let url = ''
   let mode = ''
   if (settingStore.uiVideoMode == 'online') {
-    const data = await AliFile.ApiVideoPreviewUrl(token.user_id, drive_id, file_id)
+    const data = await AliFile.ApiVideoPreviewUrlOpenApi(token.user_id, drive_id, file_id)
     if (data && data.url != '') {
       url = data.url
       mode = '转码视频模式'
     }
   }
   if (!url && !weifa) {
-    const data = await AliFile.ApiFileDownloadUrl(token.user_id, drive_id, file_id, 14400)
+    const data = await AliFile.ApiFileDownloadUrlOpenApi(token.user_id, drive_id, file_id, 14400)
     if (typeof data !== 'string' && data.url && data.url != '') {
       url = data.url
       mode = '原始文件模式'
@@ -229,85 +242,71 @@ async function Video(token: ITokenInfo, drive_id: string, file_id: string, paren
   // 自定义播放器
   let title = mode + '__' + name
   let titleStr = CleanStringForCmd(title)
-  let referer = 'https://open.aliyundrive.com/'
+  let referer = 'https://openapi.aliyundrive.com/'
   let command = settingStore.uiVideoPlayerPath
   let playCursor = humanTime(play_cursor)
-  let args = ['"' + url + '"']
   if (url.indexOf('x-oss-additional-headers=referer') > 0) {
     message.error('用户token已过期，请点击头像里退出按钮后重新登录账号')
     return
   }
-  if (window.platform == 'win32') {
-    command = '"' + settingStore.uiVideoPlayerPath + '"'
-    args = ['"' + url + '"'] //win 双引号包裹
-    if (command.toLowerCase().indexOf('potplayer') > 0) {
-      args = [
-        '"' + url + '"',
-        '/new', '/autoplay',
-        '/referer="' + referer + '"',
-        '/title="' + title + '"'
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('/seek="' + playCursor + '"')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('/sub="' + subTitleUrl + '"')
-      }
-    } else if (command.toLowerCase().indexOf('mpv') > 0) {
-      args = [
-        '"' + url + '"',
-        '--force-window=immediate',
-        '--geometry=50%',
-        '--audio-pitch-correction=yes',
-        '--keep-open-pause=no',
-        '--alang=[en,eng,zh,chi,chs,sc,zho]',
-        '--slang=[zh,chi,chs,sc,zho,en,eng]',
-        '--referrer="' + referer + '"',
-        '--title="' + title + '"',
-        '--force-media-title="' + titleStr + '"'
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('--start="' + playCursor + '"')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('--sub-file="' + subTitleUrl + '"')
-      }
-    }
-  } else if (['darwin', 'linux'].includes(window.platform)) {
-    args = ['\'' + url + '\''] // 单引号包裹
-    if (window.platform == 'darwin') {
-      if (command.includes('mpv.app')) {
-        command = 'open -a \'' + command + '\'' + ' --args '
-      } else {
-        command = 'open -a \'' + command + '\''
-      }
-    }
-    if (command.toLowerCase().indexOf('mpv') > 0) {
-      args = [
-        '\'' + url + '\'',
-        '--force-window=immediate',
-        '--geometry=50%',
-        '--audio-pitch-correction=yes',
-        '--keep-open-pause=no',
-        '--alang=[en,eng,zh,chi,chs,sc,zho]',
-        '--slang=[zh,chi,chs,sc,zho,en,eng]',
-        '--referrer=\'' + referer + '\'',
-        '--title=\'' + title + '\'',
-        '--force-media-title=\'' + titleStr + '\''
-      ]
-      if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
-        args.push('--start=\'' + playCursor + '\'')
-      }
-      if (subTitleUrl.length > 0) {
-        args.push('--sub-file=\'' + subTitleUrl + '\'')
-      }
-    }
-  } else {
+  const isWindows = window.platform === 'win32'
+  const isMacOrLinux = ['darwin', 'linux'].includes(window.platform)
+  const argsToStr = (args: string) => isWindows ? `"${args}"` : `'${args}'`
+  if (!isWindows && !isMacOrLinux) {
     message.error('不支持的系统，操作取消')
     return
   }
-  window.WebExecSync({ command, args }, (rdata: any) => {
-  })
+  const commandLowerCase = command.toLowerCase()
+  let playerArgs: any = { url, otherArgs: [] }
+  let options: SpawnOptions = {
+    // 跟随软件退出
+    detached: !settingStore.uiVideoPlayerExit
+  }
+  if (commandLowerCase.indexOf('potplayer') > 0) {
+    playerArgs = {
+      url: url,
+      otherArgs: [
+        '/new',
+        '/autoplay',
+        `/referer=${argsToStr(referer)}`,
+        `/title=${argsToStr(title)}`
+      ]
+    }
+    if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
+      playerArgs.otherArgs.push(`/seek=${argsToStr(playCursor)}`)
+    }
+    if (subTitleUrl.length > 0) {
+      playerArgs.otherArgs.push(`/sub=${argsToStr(subTitleUrl)}`)
+    }
+  }
+  if (commandLowerCase.indexOf('mpv') > 0) {
+    playerArgs = {
+      url: url,
+      otherArgs: [
+        '--force-window=immediate',
+        '--hwdec=auto',
+        '--geometry=80%',
+        '--autofit-larger=100%x100%',
+        '--autofit-smaller=640',
+        '--audio-pitch-correction=yes',
+        '--keep-open-pause=no',
+        '--alang=[en,eng,zh,chi,chs,sc,zho]',
+        '--slang=[zh,chi,chs,sc,zho,en,eng]',
+        '--input-ipc-server=alixby_mpv_ipc',
+        `--force-media-title=${argsToStr(titleStr)}`,
+        `--referrer=${argsToStr(referer)}`,
+        `--title=${argsToStr(title)}`
+      ]
+    }
+    if (playCursor.length > 0 && useSettingStore().uiVideoPlayerHistory) {
+      playerArgs.otherArgs.push(`--start=${argsToStr(playCursor)}`)
+    }
+    if (subTitleUrl.length > 0) {
+      playerArgs.otherArgs.push(`--sub-file=${argsToStr(subTitleUrl)}`)
+    }
+  }
+  const args = [ argsToStr(playerArgs.url), ...playerArgs.otherArgs ]
+  window.WebSpawnSync({ command, args, options })
 }
 
 async function Image(drive_id: string, file_id: string, name: string): Promise<void> {
@@ -398,10 +397,9 @@ async function Code(drive_id: string, file_id: string, name: string, codeExt: st
   message.loading('Loading...', 2)
   const data = await AliFile.ApiFileDownloadUrlOpenApi(user_id, drive_id, file_id, 14400)
   if (typeof data == 'string') {
-    message.error('获取文件预览链接失败，操作取消')
+    message.error('获取文件预览链接失败: ' + data)
     return
   }
-
   const pageCode: IPageCode = {
     user_id: token.user_id,
     drive_id,

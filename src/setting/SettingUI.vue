@@ -1,18 +1,49 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import message from '../utils/message'
 import useSettingStore from './settingstore'
 import MySwitch from '../layout/MySwitch.vue'
+import Config from '../utils/config'
 import ServerHttp from '../aliapi/server'
 import os from 'os'
+import {copyToClipboard, getResourcesPath} from '../utils/electronhelper'
+import { existsSync, readFileSync } from 'fs'
 
 const settingStore = useSettingStore()
 const cb = (val: any) => {
   settingStore.updateStore(val)
 }
 
-const verLoading = ref(false)
+const copyCookies = async () => {
+  const cookies = await window.WebGetCookies({ url: 'https://www.aliyundrive.com' }) as []
+  if (cookies.length > 0) {
+    let cookiesText = ''
+    cookies.forEach(cookie => {
+      cookiesText += cookie['name'] + '=' + cookie['value'] + ';'
+    })
+    copyToClipboard(cookiesText)
+    message.success('当前账号的Cookies已复制到剪切板')
+  } else {
+    message.error('当前账号的Cookies不存在')
+  }
+}
 
-const handleCheckVer1 = () => {
+const getAppVersion = () => {
+  if (os.platform() === 'linux') {
+    return Config.appVersion
+  }
+  let appVersion = ''
+  const localVersion = getResourcesPath('localVersion')
+  if (localVersion && existsSync(localVersion)) {
+    appVersion = readFileSync(localVersion, 'utf-8')
+  } else {
+    appVersion = Config.appVersion
+  }
+  return appVersion
+}
+
+const verLoading = ref(false)
+const handleCheckVer = () => {
   verLoading.value = true
   ServerHttp.CheckUpgrade().then(() => {
     verLoading.value = false
@@ -22,10 +53,18 @@ const handleCheckVer1 = () => {
 
 <template>
   <div class="settingcard">
-    <div class="appver"></div>
+    <div class="appver">小白羊 {{ getAppVersion() }}</div>
+    <div class="settingspace"></div>
     <div class="settinghead">检查更新</div>
     <div class="settingrow">
-        <a-button type="outline" size="mini" tabindex="-1" :loading="verLoading" @click="handleCheckVer1">检查更新</a-button>
+        <a-button type="outline" size="small" tabindex="-1"  @click="handleCheckVer">检查更新</a-button>
+    </div>
+    <div class="settingspace"></div>
+    <div class='settinghead'>阿里云盘账号</div>
+    <div class='settingrow'>
+      <a-button type='outline' size='small' tabindex='-1' @click='copyCookies()'>
+        复制Cookie
+      </a-button>
     </div>
     <div class="settingspace"></div>
     <div class="settinghead">外观</div>
@@ -55,11 +94,11 @@ const handleCheckVer1 = () => {
         </template>
       </a-popover>
     </div>
-<!--    <div class="settingspace"></div>-->
-<!--    <div class="settinghead">开机自启动</div>-->
-<!--    <div class="settingrow">-->
-<!--        <MySwitch :value="settingStore.launchAtStartup" @update:value="cb({ launchAtStartup: $event })"></MySwitch>-->
-<!--    </div>-->
+    <div class="settingspace"></div>
+    <div class="settinghead">启动时检查更新</div>
+    <div class="settingrow">
+      <MySwitch :value="settingStore.uiLaunchAutoCheckUpdate" @update:value="cb({ uiLaunchAutoCheckUpdate: $event })">自动检查更新</MySwitch>
+    </div>
     <div class="settingspace"></div>
     <div class="settinghead">自动签到</div>
     <div class="settingrow">

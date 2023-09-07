@@ -1,13 +1,12 @@
 <template>
-  <div  v-show="appStore.appTab === 'pic'">
+  <div v-show="appStore.appTab === 'pic'">
     <div :class="['content-container', sidebar_shown_on_pc_mode?'':'side-hidden-screen']">
       <ContentView :base_name="contentAlbumName" :album_friendly_name="contentFriendlyName"
                    @should-show-sidebar="(val, mode) =>  mode === 'mobile' ? sidebar_shown_on_mobile_mode = val : sidebar_shown_on_pc_mode = val"
                    :sidebar_shown_pc = "sidebar_shown_on_pc_mode"
-                   @preview-photo="(a,b,c,d,e) => previewPhoto(a,b,c,d,e)"
-      ></ContentView>
+                   @preview-photo="(a,b,c,d,e) => previewPhoto(a,b,c,d,e)">
+      </ContentView >
     </div>
-    <div class="sidebar-mobile-mask" v-show="sidebar_shown_on_mobile_mode" @click="sidebar_shown_on_mobile_mode = false"></div>
     <div :class="['sidebar-container', sidebar_shown_on_pc_mode?'':'side-hidden-screen', sidebar_shown_on_mobile_mode?'sidebar-mobile-shown':'']">
       <Sidebar ref="sidebar"
                @switch-album="(album_name, friendly_name) => { this.contentAlbumName = album_name; this.contentFriendlyName = friendly_name; }"
@@ -29,9 +28,10 @@ import ContentView from "./Content.vue";
 import Preview from './Preview.vue';
 import {useAppStore, useUserStore} from "../store";
 import {GetDriveID} from "../aliapi/utils";
-import { modalCreatNewAlbum } from '../utils/modal'
+import 'ant-design-vue/es/tree/style/css'
 
 export default {
+  emits: ['previewPhoto'],
   name: 'App',
   components: {
     Sidebar, ContentView, Preview
@@ -54,7 +54,6 @@ export default {
     contentFriendlyName: "",
   }),
   methods: {
-    modalCreatNewAlbum,
     previewPhoto(filename, photo_list, index, album_name, photo_obj) {
       this.preview_filename = filename;
       this.preview_index = index;
@@ -65,21 +64,19 @@ export default {
     },
 
     initialize() {
-      this.$refs.sidebar.getAlbumList();
-
       this.contentAlbumName = "all";
       this.contentFriendlyName = "图库";
       const intervalId = setInterval(() => {
-        if (GetDriveID(useUserStore().user_id, 'pic')) {
+        if (GetDriveID(useUserStore().user_id, 'pic') !== '') {
           this.$refs.sidebar.getAlbumList();
-          clearInterval(intervalId);
+          clearInterval(intervalId)
         }
       }, 1000);
     }
   },
   async mounted() {
-    if (window.innerWidth <= 500)
-      this.sidebar_shown_on_mobile_mode = true;
+    // if (window.innerWidth <= 500)
+    //   this.sidebar_shown_on_mobile_mode = true;
     this.initialize();
   }
 }
@@ -107,7 +104,7 @@ body {
   display: inline-block;
   width: 25%;
   height: 100%;
-  background: aliceblue;
+  //background: aliceblue;
 }
 .content-container {
   position: fixed;
@@ -115,7 +112,7 @@ body {
   right: 0;
   display: inline-block;
   width: 75%;
-  background: #fff;
+  //background: #fff;
   height: 100%;
 }
 
@@ -202,7 +199,6 @@ body {
   }
 }
 
-
 div.preview-container {
   position: fixed;
   z-index: 9999;
@@ -211,4 +207,18 @@ div.preview-container {
   height: 100%;
   width: 100%;
 }
+
+body[arco-theme='dark'] .preview-container {
+  color: rgba(211, 216, 241, 0.45) !important;
+}
+
+body[arco-theme='dark'] .content-container {
+  color: rgba(211, 216, 241, 0.45) !important;
+}
+
+body[arco-theme='dark'] .sidebar-container {
+  color: rgba(211, 216, 241, 0.45) !important;
+}
+
+
 </style>

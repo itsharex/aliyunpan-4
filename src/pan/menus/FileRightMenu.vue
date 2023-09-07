@@ -44,8 +44,8 @@ export default defineComponent({
         <template #default>下载</template>
       </a-doption>
       <a-doption @click="() => menuCreatShare(istree, 'pan')">
-        <template #icon> <i class="iconfont iconfenxiang" /> </template>
-        <template #default>分享</template>
+        <template #icon> <i class="iconfont iconrss" /> </template>
+        <template #default>快传</template>
       </a-doption>
 
       <a-doption v-show="!isallfavored" @click="() => menuFavSelectFile(istree, true)">
@@ -93,14 +93,45 @@ export default defineComponent({
             <template #icon> <i class="iconfont iconcopy" /> </template>
             <template #default>复制到...</template>
           </a-doption>
-          <a-doption class="danger" @click="() => menuTrashSelectFile(istree, false)">
-            <template #icon> <i class="iconfont icondelete" /> </template>
-            <template #default>回收站</template>
+          <a-doption @click="() => menuCopySelectedFile(istree, 'cut', true)">
+            <template #icon> <i class="iconfont iconscissor" /> </template>
+            <template #default>移动到资源盘</template>
           </a-doption>
+          <a-doption @click="() => menuCopySelectedFile(istree, 'copy', true)">
+            <template #icon> <i class="iconfont iconcopy" /> </template>
+            <template #default>复制到资源盘</template>
+          </a-doption>
+<!--          <a-doption class="danger" @click="() => menuTrashSelectFile(istree, false)">-->
+<!--            <template #icon> <i class="iconfont icondelete" /> </template>-->
+<!--            <template #default>回收站</template>-->
+<!--          </a-doption>-->
+        </template>
+      </a-dsubmenu>
+      <a-dsubmenu  class="rightmenu" trigger="hover">
+        <template #default>
+          <div @click.stop="() => {}">
+            <span class="arco-dropdown-option-icon"><i class="iconfont iconmoveto" style="opacity: 0.8"></i></span>删除
+          </div>
+        </template>
+        <template #content>
+          <a-doption title="Ctrl+Delete" class="danger" @click="() => menuTrashSelectFile(istree, false)">
+            <template #icon> <i class="iconfont icondelete" /> </template>
+            <template #default>放回收站</template>
+          </a-doption>
+          <a-dsubmenu class="rightmenu" trigger="hover">
+            <template #default>
+              <span class="arco-dropdown-option-icon"><i class="iconfont iconrest"></i></span>彻底删除
+            </template>
+            <template #content>
+              <a-doption title="Ctrl+Shift+Delete" class="danger" @click="() => menuTrashSelectFile(istree, true)">
+                <template #default>删除后无法还原</template>
+              </a-doption>
+            </template>
+          </a-dsubmenu>
         </template>
       </a-dsubmenu>
 
-      <a-doption v-show="dirtype != 'video'" @click="() => modalRename(istree, isselectedmulti)">
+      <a-doption v-show="dirtype != 'video'" @click="() => modalRename('backupPan', istree, isselectedmulti)">
         <template #icon> <i class="iconfont iconedit-square" /> </template>
         <template #default>重命名</template>
       </a-doption>
@@ -112,7 +143,7 @@ export default defineComponent({
           </div>
         </template>
         <template #content>
-          <a-doption @click="() => modalShuXing(istree, isselectedmulti)">
+          <a-doption @click="() => modalShuXing('backupPan', istree, isselectedmulti)">
             <template #icon> <i class="iconfont iconshuxing" /> </template>
             <template #default>属性</template>
           </a-doption>

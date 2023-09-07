@@ -5,7 +5,15 @@ import { Tree as AntdTree } from 'ant-design-vue'
 import 'ant-design-vue/es/tree/style/css'
 import usePanTreeStore, { fileiconfn } from './pantreestore'
 import MySwitchTab from '../layout/MySwitchTab.vue'
-import { KeyboardState, useAppStore, useKeyboardStore, usePanFileStore, useSettingStore, useWinStore } from '../store'
+import {
+  KeyboardState,
+  MouseState,
+  useAppStore,
+  useKeyboardStore,
+  usePanFileStore,
+  useSettingStore,
+  useWinStore
+} from '../store'
 import PanDAL from './pandal'
 import { onShowRightMenu, onHideRightMenuScroll, TestCtrl } from '../utils/keyboardhelper'
 import DirLeftMenu from './menus/DirLeftMenu.vue'
@@ -37,7 +45,7 @@ keyboardStore.$subscribe((_m: any, state: KeyboardState) => {
 })
 
 const switchValues = [
-  { key: 'wangpan', title: '网盘文件', alt: '' },
+  { key: 'backupPan', title: '网盘文件', alt: '' },
   { key: 'kuaijie', title: '快捷方式', alt: '' }
 ]
 
@@ -122,7 +130,7 @@ const onRowItemDrop = (ev: any, movetodirid: string) => {
       const path = filesList[i].path
       files.push(path)
     }
-    modalUpload(movetodirid, files)
+    modalUpload('backupPan', movetodirid, files)
   } else {
     
     dropMoveSelectedFile(movetodirid)
@@ -169,7 +177,7 @@ const handleQuickSelect = (index: number) => {
     </div>
     <div class="treeleft">
       <a-tabs type="text" :direction="'horizontal'" class="hidetabs" :justify="true" :active-key="appStore.GetAppTabMenu">
-        <a-tab-pane key="wangpan" title="1">
+        <a-tab-pane key="backupPan" title="1">
           <AntdTree
             ref="treeref"
             :tabindex="-1"
@@ -291,7 +299,6 @@ const handleQuickSelect = (index: number) => {
 .dirtree .iconfont.iconsearch {
   color: #1890ff;
 }
-
 .colortree .iconfont.iconrss_video {
   color: #a760ef;
 }
